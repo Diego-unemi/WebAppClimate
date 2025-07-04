@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reporte del Clima - ESP32 Sensor Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <!-- Navegación -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="/" class="nav-brand">🌡️ ESP32 Dashboard</a>
+            <ul class="nav-menu">
+                <li><a href="/" class="nav-link">Dashboard</a></li>
+                <li><a href="/historial" class="nav-link">Historial</a></li>
+                <li><a href="/estadisticas" class="nav-link">Estadísticas</a></li>
+                <li><a href="/reporte-clima" class="nav-link active">Reporte Clima</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <div class="dashboard fade-in">
+            <div class="header">
+                <h1>🌤️ Reporte del Clima Interior</h1>
+                <p>Resumen inteligente de las condiciones ambientales y recomendaciones</p>
+            </div>
+
+            <div id="loadingMessage" style="text-align: center; padding: 2rem;">
+                <div class="loading"></div>
+                <p>Cargando reporte...</p>
+            </div>
+
+            <div id="weatherReport" style="display: none;">
+                <!-- Condiciones actuales -->
+                <div class="weather-report weather-section">
+                    <h3>Condiciones Actuales</h3>
+                    <ul>
+                        <li>Temperatura: <b id="currentTemp">--</b> °C <span id="tempCondition" class="condition-badge"></span></li>
+                        <li>Humedad: <b id="currentHumidity">--</b> % <span id="humidityCondition" class="condition-badge"></span></li>
+                        <li>CO2: <b id="currentCO2">--</b> ppm <span id="airQuality" class="condition-badge"></span></li>
+                    </ul>
+                </div>
+
+                <!-- Promedios 24h -->
+                <div class="weather-report weather-section">
+                    <h3>Promedios de las últimas 24 horas</h3>
+                    <ul>
+                        <li>Temperatura promedio: <b id="avgTemp">--</b> °C</li>
+                        <li>Humedad promedio: <b id="avgHumidity">--</b> %</li>
+                        <li>CO2 promedio: <b id="avgCO2">--</b> ppm</li>
+                    </ul>
+                </div>
+
+                <!-- Recomendaciones -->
+                <div class="weather-report weather-section">
+                    <h3>Recomendaciones</h3>
+                    <ul class="recommendations-list" id="recommendationsList">
+                        <li>--</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="last-update">
+                Última actualización: <span id="lastUpdate">--</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="{{ url_for('static', filename='js/scripts.js') }}"></script>
+    <script>
+    // Inicialización AJAX centralizado para reporte del clima
+    document.addEventListener('DOMContentLoaded', function() {
+        async function loadWeatherReport() {
+            document.getElementById('loadingMessage').style.display = 'block';
+            document.getElementById('weatherReport').style.display = 'none';
+            const data = await fetchJSON('/api/weather_report');
+            if (!data || data.error) {
+                document.getElementById('loadingMessage').innerHTML = `<p>${data && data.error ? data.error : 'Error al cargar el reporte'}</p>`;
+                return;
+            }
+            // Condiciones actuales
+            document.getElementById('currentTemp').textContent = data.current_conditions.temperature?.toFixed(1) ?? '--';
+            document.getElementById('currentHumidity').textContent = data.current_conditions.humidity?.toFixed(1) ?? '--';
+            document.getElementById('currentCO2').textContent = Math.round(data.current_conditions.co2_ppm ?? 0);
+            setBadge('tempCondition', data.current_conditions.temp_condition);
+            setBadge('humidityCondition', data.current_conditions.humidity_condition);
+            setBadge('airQuality', data.current_conditions.air_quality);
+            // Promedios
+            document.getElementById('avgTemp').textContent = data.averages_24h.temperature;
+            document.getElementById('avgHumidity').textContent = data.averages_24h.humidity;
+            document.getElementById('avgCO2').textContent = data.averages_24h.co2_ppm;
+            // Recomendaciones
+            const recList = document.getElementById('recommendationsList');
+            recList.innerHTML = '';
+            if (data.recommendations.length === 0) {
+                recList.innerHTML = '<li>Ambiente en condiciones óptimas 👍</li>';
+            } else {
+                data.recommendations.forEach(rec => {
+                    const li = document.createElement('li');
+                    li.textContent = rec;
+                    recList.appendChild(li);
+                });
+            }
+            document.getElementById('loadingMessage').style.display = 'none';
+            document.getElementById('weatherReport').style.display = 'block';
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleString('es-ES');
+        }
+        function setBadge(elementId, value) {
+            const el = document.getElementById(elementId);
+            el.textContent = value;
+            el.className = 'condition-badge';
+            if (value === 'Caluroso' || value === 'Mala') el.classList.add('condition-danger');
+            else if (value === 'Frío' || value === 'Seco' || value === 'Húmedo' || value === 'Regular') el.classList.add('condition-warning');
+            else el.classList.add('condition-normal');
+        }
+        loadWeatherReport();
+        setInterval(loadWeatherReport, 30000);
+    });
+    </script>
+</body>
+</html> 

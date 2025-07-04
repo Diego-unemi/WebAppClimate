@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Historial - ESP32 Sensor Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <!-- Navegación -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="/" class="nav-brand">🌡️ ESP32 Dashboard</a>
+            <ul class="nav-menu">
+                <li><a href="/" class="nav-link">Dashboard</a></li>
+                <li><a href="/historial" class="nav-link active">Historial</a></li>
+                <li><a href="/estadisticas" class="nav-link">Estadísticas</a></li>
+                <li><a href="/reporte-clima" class="nav-link">Reporte Clima</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <div class="dashboard fade-in">
+            <div class="header">
+                <h1>📊 Historial de Datos</h1>
+                <p>Consulta el historial completo de lecturas de sensores</p>
+            </div>
+
+            <div class="controls">
+                <select class="filter-select" id="timeFilter">
+                    <option value="1">Última hora</option>
+                    <option value="6">Últimas 6 horas</option>
+                    <option value="24" selected>Últimas 24 horas</option>
+                    <option value="168">Última semana</option>
+                </select>
+                <select class="filter-select" id="intervalFilter">
+                    <option value="1">Cada 1 min</option>
+                    <option value="5">Cada 5 min</option>
+                    <option value="30">Cada 30 min</option>
+                </select>
+                <button class="btn btn-primary" id="prevPageBtn">⬅️</button>
+                <span id="pageIndicator">1</span>
+                <button class="btn btn-primary" id="nextPageBtn">➡️</button>
+                <button class="btn btn-primary" id="refreshBtn">
+                    <span id="refreshIcon">🔄</span> Actualizar
+                </button>
+                <button class="btn" id="exportBtn">
+                    📥 Exportar CSV
+                </button>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="totalReadings">--</div>
+                    <div class="stat-label">Total de Lecturas</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="avgTemperature">--</div>
+                    <div class="stat-label">Temp. Promedio</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="avgHumidity">--</div>
+                    <div class="stat-label">Humedad Promedio</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="avgCO2">--</div>
+                    <div class="stat-label">CO2 Promedio</div>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <div class="chart-title">📋 Datos Históricos</div>
+                <div id="loadingMessage" style="text-align: center; padding: 2rem;">
+                    <div class="loading"></div>
+                    <p>Cargando datos...</p>
+                </div>
+                <table class="data-table" id="historicalTable" style="display: none;">
+                    <thead>
+                        <tr>
+                            <th>Fecha y Hora</th>
+                            <th>Temperatura (°C)</th>
+                            <th>Humedad (%)</th>
+                            <th>CO2 (ppm)</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <!-- Los datos se cargarán dinámicamente -->
+                    </tbody>
+                </table>
+                <div id="noDataMessage" style="text-align: center; padding: 2rem; display: none;">
+                    <p>No hay datos disponibles para el período seleccionado</p>
+                </div>
+            </div>
+
+            <div class="last-update">
+                Última actualización: <span id="lastUpdate">--</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="{{ url_for('static', filename='js/scripts.js') }}"></script>
+    <script>
+    let currentPage = 1;
+
+    async function loadHistoricalData() {
+        const hours = parseInt(document.getElementById('timeFilter').value);
+        const interval = parseInt(document.getElementById('intervalFilter').value);
+        const perPage = 50;
+        document.getElementById('loadingMessage').style.display = 'block';
+        document.getElementById('historicalTable').style.display = 'none';
+        document.getElementById('noDataMessage').style.display = 'none';
+        document.getElementById('refreshIcon').innerHTML = '<div class="loading"></div>';
+        const data = await fetchJSON(`/api/historical?hours=${hours}&interval=${interval}&page=${currentPage}&per_page=${perPage}`);
+        if (!data) {
+            document.getElementById('noDataMessage').style.display = 'block';
+            document.getElementById('loadingMessage').style.display = 'none';
+            return;
+        }
+        // Actualizar tabla
+        const tableBody = document.getElementById('tableBody');
+        tableBody.innerHTML = '';
+        data.forEach(reading => {
+            const row = document.createElement('tr');
+            const timestamp = new Date(reading.timestamp);
+            const formattedTime = reading.timestamp; // Ya viene agrupado por minuto
+            row.innerHTML = `
+                <td>${formattedTime}</td>
+                <td>${reading.temperature ? reading.temperature.toFixed(1) : '--'}</td>
+                <td>${reading.humidity ? reading.humidity.toFixed(1) : '--'}</td>
+                <td>${reading.co2_ppm ? Math.round(reading.co2_ppm) : '--'}</td>
+                <td>${reading.temperature > 30 ? '🌡️' : '✅'}</td>
+            `;
+            tableBody.appendChild(row);
+        });
+        // Actualizar estadísticas
+        document.getElementById('totalReadings').textContent = data.length;
+        document.getElementById('avgTemperature').textContent = data.length ? (data.reduce((s, r) => s + (r.temperature || 0), 0) / data.length).toFixed(1) : '--';
+        document.getElementById('avgHumidity').textContent = data.length ? (data.reduce((s, r) => s + (r.humidity || 0), 0) / data.length).toFixed(1) : '--';
+        document.getElementById('avgCO2').textContent = data.length ? Math.round(data.reduce((s, r) => s + (r.co2_ppm || 0), 0) / data.length) : '--';
+        // Mostrar tabla
+        if (data.length === 0) {
+            document.getElementById('noDataMessage').style.display = 'block';
+        } else {
+            document.getElementById('historicalTable').style.display = 'table';
+        }
+        document.getElementById('loadingMessage').style.display = 'none';
+        setTimeout(() => {
+            document.getElementById('refreshIcon').textContent = '🔄';
+        }, 1000);
+        document.getElementById('lastUpdate').textContent = new Date().toLocaleString('es-ES');
+        document.getElementById('pageIndicator').textContent = currentPage;
+    }
+    document.getElementById('refreshBtn').onclick = loadHistoricalData;
+    document.getElementById('timeFilter').onchange = function() { currentPage = 1; loadHistoricalData(); };
+    document.getElementById('intervalFilter').onchange = function() { currentPage = 1; loadHistoricalData(); };
+    document.getElementById('prevPageBtn').onclick = function() { if (currentPage > 1) { currentPage--; loadHistoricalData(); }};
+    document.getElementById('nextPageBtn').onclick = function() { currentPage++; loadHistoricalData(); };
+    document.getElementById('exportBtn').onclick = function() {
+        // Exportar CSV
+        const tableBody = document.getElementById('tableBody');
+        let csv = 'Fecha y Hora,Temperatura (°C),Humedad (%),CO2 (ppm)\n';
+        Array.from(tableBody.children).forEach(row => {
+            const cols = Array.from(row.children).map(td => td.textContent);
+            csv += cols.slice(0, 4).join(',') + '\n';
+        });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `sensor_data_${new Date().toISOString().split('T')[0]}.csv`;
+        link.click();
+    };
+    loadHistoricalData();
+    setInterval(loadHistoricalData, 30000);
+    </script>
+</body>
+</html> 

@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estadísticas - ESP32 Sensor Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .navbar {
+            background: rgba(255,255,255,0.08);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        .nav-menu {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+        }
+        .nav-link {
+            color: #fff;
+            text-decoration: none;
+            font-weight: 500;
+            padding-bottom: 2px;
+            border-bottom: 2px solid transparent;
+            transition: border 0.2s;
+        }
+        .nav-link.active, .nav-link:hover {
+            border-bottom: 2px solid #fff;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 2rem auto;
+            background: rgba(255,255,255,0.10);
+            border-radius: 18px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+            padding: 2rem 1rem 2.5rem 1rem;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .header h1 {
+            font-size: 2.2em;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+        .header p {
+            color: #c7d2fe;
+            font-size: 1.1em;
+        }
+        .controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+        .btn {
+            background: #667eea;
+            color: #fff;
+            border: none;
+            border-radius: 25px;
+            padding: 0.7em 2em;
+            font-size: 1em;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+        .btn:hover {
+            background: #5a67d8;
+        }
+        .filter-select {
+            background: rgba(255,255,255,0.18);
+            color: #fff;
+            border: 1px solid #a5b4fc;
+            border-radius: 25px;
+            padding: 0.5em 1.5em;
+            font-size: 1em;
+        }
+        
+        /* Estadísticas principales */
+        .stats-overview {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+        .stat-card {
+            background: rgba(255,255,255,0.13);
+            border-radius: 14px;
+            padding: 1.5rem;
+            text-align: center;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+            position: relative;
+            overflow: hidden;
+        }
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #2ed573, #ffa502, #ff4757);
+        }
+        .stat-icon {
+            font-size: 2em;
+            margin-bottom: 0.5rem;
+        }
+        .stat-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin-bottom: 0.2em;
+        }
+        .stat-label {
+            color: #e0e7ff;
+            font-size: 1em;
+        }
+        .stat-change {
+            font-size: 0.9em;
+            margin-top: 0.5rem;
+        }
+        .stat-change.positive { color: #2ed573; }
+        .stat-change.negative { color: #ff4757; }
+        
+        /* Gráficos mejorados */
+        .charts-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+        .chart-container {
+            background: rgba(255,255,255,0.13);
+            border-radius: 14px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+        }
+        .chart-title {
+            text-align: center;
+            font-size: 1.2em;
+            color: #c7d2fe;
+            margin-bottom: 1rem;
+            font-weight: 600;
+        }
+        .chart {
+            height: 300px !important;
+            width: 100% !important;
+        }
+        
+        /* Análisis de tendencias */
+        .trends-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+        .trend-card {
+            background: rgba(255,255,255,0.13);
+            border-radius: 14px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+        }
+        .trend-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        .trend-icon {
+            font-size: 1.5em;
+        }
+        .trend-title {
+            font-size: 1.1em;
+            font-weight: 600;
+        }
+        .trend-value {
+            font-size: 2em;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+        .trend-description {
+            color: #c7d2fe;
+            font-size: 0.9em;
+        }
+        
+        /* Tabla mejorada */
+        .table-section {
+            background: rgba(255,255,255,0.13);
+            border-radius: 14px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+            overflow-x: auto;
+        }
+        .table-title {
+            text-align: center;
+            font-size: 1.2em;
+            color: #c7d2fe;
+            margin-bottom: 1.5rem;
+            font-weight: 600;
+        }
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .data-table th {
+            background: rgba(255,255,255,0.1);
+            padding: 1rem 0.5rem;
+            text-align: center;
+            font-weight: 600;
+            color: #fff;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .data-table td {
+            padding: 0.8rem 0.5rem;
+            text-align: center;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .data-table tr:hover {
+            background: rgba(255,255,255,0.05);
+        }
+        
+        .loading {
+            border: 3px solid rgba(255,255,255,0.3);
+            border-top: 3px solid #fff;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .last-update {
+            text-align: center;
+            color: #c7d2fe;
+            font-size: 0.95em;
+            margin-top: 2rem;
+        }
+        
+        @media (max-width: 768px) {
+            .charts-section {
+                grid-template-columns: 1fr;
+            }
+            .trends-section {
+                grid-template-columns: 1fr;
+            }
+            .stats-overview {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/" class="nav-brand" style="font-size:1.5em;font-weight:bold;color:#fff;text-decoration:none;">🌡️ ESP32 Dashboard</a>
+        <ul class="nav-menu">
+            <li><a href="/" class="nav-link">Dashboard</a></li>
+            <li><a href="/historial" class="nav-link">Historial</a></li>
+            <li><a href="/estadisticas" class="nav-link active">Estadísticas</a></li>
+            <li><a href="/reporte-clima" class="nav-link">Reporte Clima</a></li>
+        </ul>
+    </nav>
+
+    <div class="container">
+        <div class="header">
+            <h1>📈 Análisis Estadístico Avanzado</h1>
+            <p>Métricas detalladas, tendencias y análisis de rendimiento de los sensores</p>
+        </div>
+
+        <div class="controls">
+            <select class="filter-select" id="daysFilter">
+                <option value="3">Últimos 3 días</option>
+                <option value="7" selected>Última semana</option>
+                <option value="14">Últimas 2 semanas</option>
+                <option value="30">Último mes</option>
+            </select>
+            <button class="btn" id="refreshStatsBtn">
+                <span id="refreshStatsIcon">🔄</span> Actualizar Estadísticas
+            </button>
+        </div>
+
+        <!-- Resumen de estadísticas principales -->
+        <div class="stats-overview">
+            <div class="stat-card">
+                <div class="stat-icon">📊</div>
+                <div class="stat-value" id="totalDays">--</div>
+                <div class="stat-label">Días Analizados</div>
+                <div class="stat-change" id="daysChange">--</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">📈</div>
+                <div class="stat-value" id="totalReadings">--</div>
+                <div class="stat-label">Total Lecturas</div>
+                <div class="stat-change" id="readingsChange">--</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">⚡</div>
+                <div class="stat-value" id="avgReadingsPerDay">--</div>
+                <div class="stat-label">Lecturas/Día</div>
+                <div class="stat-change" id="avgChange">--</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🎯</div>
+                <div class="stat-value" id="dataCompleteness">--</div>
+                <div class="stat-label">Completitud</div>
+                <div class="stat-change" id="completenessChange">--</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🌡️</div>
+                <div class="stat-value" id="avgTemperature">--</div>
+                <div class="stat-label">Temp. Promedio</div>
+                <div class="stat-change" id="tempChange">--</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">💧</div>
+                <div class="stat-value" id="avgHumidity">--</div>
+                <div class="stat-label">Humedad Promedio</div>
+                <div class="stat-change" id="humChange">--</div>
+            </div>
+        </div>
+
+        <!-- Análisis de tendencias -->
+        <div class="trends-section">
+            <div class="trend-card">
+                <div class="trend-header">
+                    <span class="trend-icon">📈</span>
+                    <span class="trend-title">Tendencia de Temperatura</span>
+                </div>
+                <div class="trend-value" id="tempTrend">--</div>
+                <div class="trend-description" id="tempTrendDesc">Análisis de la tendencia de temperatura</div>
+            </div>
+            <div class="trend-card">
+                <div class="trend-header">
+                    <span class="trend-icon">💧</span>
+                    <span class="trend-title">Tendencia de Humedad</span>
+                </div>
+                <div class="trend-value" id="humTrend">--</div>
+                <div class="trend-description" id="humTrendDesc">Análisis de la tendencia de humedad</div>
+            </div>
+            <div class="trend-card">
+                <div class="trend-header">
+                    <span class="trend-icon">💨</span>
+                    <span class="trend-title">Calidad del Aire</span>
+                </div>
+                <div class="trend-value" id="airQuality">--</div>
+                <div class="trend-description" id="airQualityDesc">Evaluación de la calidad del aire</div>
+            </div>
+        </div>
+
+        <!-- Gráficos mejorados -->
+        <div class="charts-section">
+            <div class="chart-container">
+                <div class="chart-title">🌡️ Temperatura - Análisis Completo</div>
+                <canvas id="temperatureChart" class="chart"></canvas>
+            </div>
+            <div class="chart-container">
+                <div class="chart-title">💧 Humedad - Análisis Completo</div>
+                <canvas id="humidityChart" class="chart"></canvas>
+            </div>
+            <div class="chart-container">
+                <div class="chart-title">💨 CO2 - Análisis Completo</div>
+                <canvas id="co2Chart" class="chart"></canvas>
+            </div>
+            <div class="chart-container">
+                <div class="chart-title">📊 Distribución de Lecturas</div>
+                <canvas id="readingsChart" class="chart"></canvas>
+            </div>
+        </div>
+
+        <!-- Tabla de estadísticas detalladas -->
+        <div class="table-section">
+            <div class="table-title">📋 Estadísticas Detalladas por Día</div>
+            <div id="loadingStatsMessage" style="text-align: center; padding: 2rem;">
+                <div class="loading"></div>
+                <p>Cargando estadísticas avanzadas...</p>
+            </div>
+            <table class="data-table" id="statsTable" style="display: none;">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Temp. Promedio (°C)</th>
+                        <th>Temp. Máx (°C)</th>
+                        <th>Temp. Mín (°C)</th>
+                        <th>Humedad Promedio (%)</th>
+                        <th>Humedad Máx (%)</th>
+                        <th>Humedad Mín (%)</th>
+                        <th>CO2 Promedio (ppm)</th>
+                        <th>CO2 Máx (ppm)</th>
+                        <th>CO2 Mín (ppm)</th>
+                        <th>Lecturas</th>
+                        <th>Calidad</th>
+                    </tr>
+                </thead>
+                <tbody id="statsTableBody">
+                    <!-- Los datos se cargarán dinámicamente -->
+                </tbody>
+            </table>
+            <div id="noDataStatsMessage" style="text-align: center; padding: 2rem; display: none;">
+                <p>No hay estadísticas disponibles para el período seleccionado</p>
+            </div>
+        </div>
+
+        <div class="last-update">
+            Última actualización: <span id="lastStatsUpdate">--</span>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="{{ url_for('static', filename='js/scripts.js') }}"></script>
+    <script>
+    // Inicialización AJAX centralizado para estadísticas mejoradas
+    document.addEventListener('DOMContentLoaded', function() {
+        let temperatureChart, humidityChart, co2Chart, readingsChart;
+        
+        async function loadStatistics() {
+            const days = parseInt(document.getElementById('daysFilter').value);
+            document.getElementById('loadingStatsMessage').style.display = 'block';
+            document.getElementById('statsTable').style.display = 'none';
+            document.getElementById('noDataStatsMessage').style.display = 'none';
+            document.getElementById('refreshStatsIcon').innerHTML = '<div class="loading"></div>';
+            
+            const data = await fetchJSON(`/api/statistics?days=${days}`);
+            if (!data || data.length === 0) {
+                document.getElementById('noDataStatsMessage').style.display = 'block';
+                document.getElementById('loadingStatsMessage').style.display = 'none';
+                return;
+            }
+            
+            // Calcular estadísticas avanzadas
+            const totalReadings = data.reduce((sum, d) => sum + d.readings_count, 0);
+            const avgTemp = data.reduce((sum, d) => sum + (d.avg_temperature || 0), 0) / data.length;
+            const avgHum = data.reduce((sum, d) => sum + (d.avg_humidity || 0), 0) / data.length;
+            const avgCO2 = data.reduce((sum, d) => sum + (d.avg_co2 || 0), 0) / data.length;
+            
+            // Actualizar resumen principal
+            document.getElementById('totalDays').textContent = data.length;
+            document.getElementById('totalReadings').textContent = totalReadings.toLocaleString();
+            document.getElementById('avgReadingsPerDay').textContent = Math.round(totalReadings / data.length);
+            document.getElementById('avgTemperature').textContent = avgTemp.toFixed(1);
+            document.getElementById('avgHumidity').textContent = avgHum.toFixed(1);
+            
+            // Calcular completitud
+            const expectedReadingsPerDay = 24 * 60; // Una lectura por minuto
+            const completeness = Math.round((totalReadings / (data.length * expectedReadingsPerDay)) * 100);
+            document.getElementById('dataCompleteness').textContent = completeness + '%';
+            
+            // Análisis de tendencias
+            const tempTrend = calculateTrend(data.map(d => d.avg_temperature));
+            const humTrend = calculateTrend(data.map(d => d.avg_humidity));
+            const airQuality = assessAirQuality(data.map(d => d.avg_co2));
+            
+            document.getElementById('tempTrend').textContent = tempTrend.direction;
+            document.getElementById('tempTrendDesc').textContent = tempTrend.description;
+            document.getElementById('humTrend').textContent = humTrend.direction;
+            document.getElementById('humTrendDesc').textContent = humTrend.description;
+            document.getElementById('airQuality').textContent = airQuality.level;
+            document.getElementById('airQualityDesc').textContent = airQuality.description;
+            
+            // Actualizar gráficos
+            updateCharts(data);
+            
+            // Actualizar tabla
+            updateTable(data);
+            
+            document.getElementById('loadingStatsMessage').style.display = 'none';
+            document.getElementById('refreshStatsIcon').textContent = '🔄';
+            document.getElementById('lastStatsUpdate').textContent = new Date().toLocaleString('es-ES');
+        }
+        
+        function calculateTrend(values) {
+            if (values.length < 2) return { direction: 'Estable', description: 'Datos insuficientes' };
+            
+            const firstHalf = values.slice(0, Math.floor(values.length / 2));
+            const secondHalf = values.slice(Math.floor(values.length / 2));
+            const firstAvg = firstHalf.reduce((a, b) => a + b, 0) / firstHalf.length;
+            const secondAvg = secondHalf.reduce((a, b) => a + b, 0) / secondHalf.length;
+            
+            const change = ((secondAvg - firstAvg) / firstAvg) * 100;
+            
+            if (change > 5) return { direction: '↗️ Aumentando', description: `Incremento del ${change.toFixed(1)}%` };
+            if (change < -5) return { direction: '↘️ Disminuyendo', description: `Decremento del ${Math.abs(change).toFixed(1)}%` };
+            return { direction: '→ Estable', description: 'Sin cambios significativos' };
+        }
+        
+        function assessAirQuality(co2Values) {
+            const avgCO2 = co2Values.reduce((a, b) => a + b, 0) / co2Values.length;
+            
+            if (avgCO2 < 800) return { level: '🟢 Excelente', description: 'Calidad del aire óptima' };
+            if (avgCO2 < 1200) return { level: '🟡 Buena', description: 'Calidad del aire aceptable' };
+            if (avgCO2 < 2000) return { level: '🟠 Moderada', description: 'Se recomienda ventilación' };
+            return { level: '🔴 Mala', description: 'Se requiere ventilación inmediata' };
+        }
+        
+        function updateCharts(data) {
+            const dates = data.map(d => d.date);
+            const avgTemps = data.map(d => d.avg_temperature);
+            const maxTemps = data.map(d => d.max_temperature);
+            const minTemps = data.map(d => d.min_temperature);
+            const avgHums = data.map(d => d.avg_humidity);
+            const maxHums = data.map(d => d.max_humidity);
+            const minHums = data.map(d => d.min_humidity);
+            const avgCO2s = data.map(d => d.avg_co2);
+            const maxCO2s = data.map(d => d.max_co2);
+            const minCO2s = data.map(d => d.min_co2);
+            const readings = data.map(d => d.readings_count);
+            
+            const chartOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: { color: 'white', usePointStyle: true, font: { size: 12 } }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: 'white', font: { size: 11 } },
+                        grid: { color: 'rgba(255,255,255,0.1)' }
+                    },
+                    y: {
+                        ticks: { color: 'white', font: { size: 11 } },
+                        grid: { color: 'rgba(255,255,255,0.1)' }
+                    }
+                },
+                elements: {
+                    point: { radius: 4, hoverRadius: 6 },
+                    line: { borderWidth: 2 }
+                }
+            };
+            
+            // Gráfico de temperatura
+            if (!temperatureChart) {
+                temperatureChart = new Chart(document.getElementById('temperatureChart').getContext('2d'), {
+                    type: 'line',
+                    data: {
+                        labels: dates,
+                        datasets: [
+                            {label: 'Promedio', data: avgTemps, borderColor: '#ff6b6b', backgroundColor: 'rgba(255,107,107,0.1)', tension: 0.4, fill: true},
+                            {label: 'Máximo', data: maxTemps, borderColor: '#ff4757', backgroundColor: 'rgba(255,71,87,0.1)', tension: 0.4, fill: false},
+                            {label: 'Mínimo', data: minTemps, borderColor: '#ffa502', backgroundColor: 'rgba(255,165,2,0.1)', tension: 0.4, fill: false}
+                        ]
+                    },
+                    options: chartOptions
+                });
+            } else {
+                temperatureChart.data.labels = dates;
+                temperatureChart.data.datasets[0].data = avgTemps;
+                temperatureChart.data.datasets[1].data = maxTemps;
+                temperatureChart.data.datasets[2].data = minTemps;
+                temperatureChart.update('none');
+            }
+            
+            // Gráfico de humedad
+            if (!humidityChart) {
+                humidityChart = new Chart(document.getElementById('humidityChart').getContext('2d'), {
+                    type: 'line',
+                    data: {
+                        labels: dates,
+                        datasets: [
+                            {label: 'Promedio', data: avgHums, borderColor: '#4ecdc4', backgroundColor: 'rgba(78,205,196,0.1)', tension: 0.4, fill: true},
+                            {label: 'Máximo', data: maxHums, borderColor: '#2ed573', backgroundColor: 'rgba(46,213,115,0.1)', tension: 0.4, fill: false},
+                            {label: 'Mínimo', data: minHums, borderColor: '#ffa502', backgroundColor: 'rgba(255,165,2,0.1)', tension: 0.4, fill: false}
+                        ]
+                    },
+                    options: chartOptions
+                });
+            } else {
+                humidityChart.data.labels = dates;
+                humidityChart.data.datasets[0].data = avgHums;
+                humidityChart.data.datasets[1].data = maxHums;
+                humidityChart.data.datasets[2].data = minHums;
+                humidityChart.update('none');
+            }
+            
+            // Gráfico de CO2
+            if (!co2Chart) {
+                co2Chart = new Chart(document.getElementById('co2Chart').getContext('2d'), {
+                    type: 'line',
+                    data: {
+                        labels: dates,
+                        datasets: [
+                            {label: 'Promedio', data: avgCO2s, borderColor: '#45b7d1', backgroundColor: 'rgba(69,183,209,0.1)', tension: 0.4, fill: true},
+                            {label: 'Máximo', data: maxCO2s, borderColor: '#ff4757', backgroundColor: 'rgba(255,71,87,0.1)', tension: 0.4, fill: false},
+                            {label: 'Mínimo', data: minCO2s, borderColor: '#2ed573', backgroundColor: 'rgba(46,213,115,0.1)', tension: 0.4, fill: false}
+                        ]
+                    },
+                    options: chartOptions
+                });
+            } else {
+                co2Chart.data.labels = dates;
+                co2Chart.data.datasets[0].data = avgCO2s;
+                co2Chart.data.datasets[1].data = maxCO2s;
+                co2Chart.data.datasets[2].data = minCO2s;
+                co2Chart.update('none');
+            }
+            
+            // Gráfico de lecturas
+            if (!readingsChart) {
+                readingsChart = new Chart(document.getElementById('readingsChart').getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: dates,
+                        datasets: [{
+                            label: 'Lecturas por Día',
+                            data: readings,
+                            backgroundColor: 'rgba(102, 126, 234, 0.8)',
+                            borderColor: '#667eea',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        ...chartOptions,
+                        plugins: {
+                            legend: {
+                                labels: { color: 'white', usePointStyle: true, font: { size: 12 } }
+                            }
+                        }
+                    }
+                });
+            } else {
+                readingsChart.data.labels = dates;
+                readingsChart.data.datasets[0].data = readings;
+                readingsChart.update('none');
+            }
+        }
+        
+        function updateTable(data) {
+            const tableBody = document.getElementById('statsTableBody');
+            tableBody.innerHTML = '';
+            
+            data.forEach(day => {
+                const row = document.createElement('tr');
+                const quality = assessAirQuality([day.avg_co2 || 0]);
+                
+                row.innerHTML = `
+                    <td>${day.date}</td>
+                    <td>${day.avg_temperature ? day.avg_temperature.toFixed(1) : '--'}</td>
+                    <td>${day.max_temperature ? day.max_temperature.toFixed(1) : '--'}</td>
+                    <td>${day.min_temperature ? day.min_temperature.toFixed(1) : '--'}</td>
+                    <td>${day.avg_humidity ? day.avg_humidity.toFixed(1) : '--'}</td>
+                    <td>${day.max_humidity ? day.max_humidity.toFixed(1) : '--'}</td>
+                    <td>${day.min_humidity ? day.min_humidity.toFixed(1) : '--'}</td>
+                    <td>${day.avg_co2 ? Math.round(day.avg_co2) : '--'}</td>
+                    <td>${day.max_co2 ? Math.round(day.max_co2) : '--'}</td>
+                    <td>${day.min_co2 ? Math.round(day.min_co2) : '--'}</td>
+                    <td>${day.readings_count || 0}</td>
+                    <td>${quality.level}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+            
+            document.getElementById('statsTable').style.display = 'table';
+        }
+        
+        // Event listeners
+        document.getElementById('refreshStatsBtn').onclick = loadStatistics;
+        document.getElementById('daysFilter').onchange = loadStatistics;
+        
+        // Cargar datos iniciales
+        loadStatistics();
+        
+        // Actualizar cada 5 minutos
+        setInterval(loadStatistics, 300000);
+    });
+    </script>
+</body>
+</html> 
